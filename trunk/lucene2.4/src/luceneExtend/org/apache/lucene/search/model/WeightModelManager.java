@@ -78,6 +78,8 @@ public class WeightModelManager {
 			float numberOfTokens = searcher.getNumTokens(field);
 			float numberOfUniqueTerms = searcher.getNumUniqTokens(field);
 			
+			
+			
 //			TermsCache.Item item = tcache.getItem(query.getTerm(), searcher);
 //			float df = item.df;
 //			float termFreq = item.ctf;
@@ -95,6 +97,7 @@ public class WeightModelManager {
 			float termFreq = (float) (df * Math.sqrt(2 + query.getSlop()));
 //			float df = searcher.maxDoc() /100f; 
 //			float termFreq = df * 2; 
+//			averageFiledLength = (numberOfTokens - maxDoc *(query.getSlop() - 1 ) )/(float)maxDoc;
 			model.prepare(maxDoc,
 						averageFiledLength, numberOfTokens,
 						numberOfUniqueTerms, df, query.getOccurNum(), termFreq);
