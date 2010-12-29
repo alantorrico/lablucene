@@ -84,7 +84,7 @@ public class DFRRPhraseScorer extends RPhraseScorer {
 	}
 
 	static double getTimes(int[] p1, int[] p2, int winSize, int docLen) {
-		int proxType = 2;
+		int proxType = 1;
 		if (proxType == 1) {// HAL
 			return Distance.unorderHALTimes(p1, p2, winSize);
 		} else if (proxType == 2) {// unorder

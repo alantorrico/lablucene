@@ -171,9 +171,9 @@ public class RPhraseQuery extends RQuery {
         	  scorer = new RSloppyPhraseScorer(this, tps, getPositions(), similarity, slop,
                       reader.norms(field));
           }
-          scorer.setWeightingModel(weightmodel);
+          
       }
-      
+      scorer.setWeightingModel(weightmodel);
       
       return scorer;
 
