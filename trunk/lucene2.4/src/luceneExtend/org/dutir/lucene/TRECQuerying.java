@@ -356,10 +356,14 @@ public class TRECQuerying {
 		return method;
 	}
 
+	
+	
 	protected void processQueryAndWrite(RBooleanQuery bquery) {
 
+		//this is not for speeding up QE process. 
+		boolean shortFirsPass = Boolean.parseBoolean(ApplicationSetup.getProperty("trec.shortFirsPass", "false"));
 		int colNum = end;
-		if (ApplicationSetup.PostProcessTag && postList.size() > 0) {
+		if (shortFirsPass &&  postList.size() > 0) {
 			colNum = ApplicationSetup.EXPANSION_DOCUMENTS + 1;
 			if (logger.isDebugEnabled())
 				logger.debug("retrieved " + colNum
@@ -383,8 +387,7 @@ public class TRECQuerying {
 															// info of basic
 															// retrieval model.
 			if(ApplicationSetup.PostProcessTag) setExpansionFileName(collector);
-			for (int i = 0; ApplicationSetup.PostProcessTag
-					&& i < postList.size(); i++) {
+			for (int i = 0; i < postList.size(); i++) {
 				// change TopDocCollector according to the post processing
 				// algorithm
 				PostProcess pp = (PostProcess) Class.forName(postList.get(i))

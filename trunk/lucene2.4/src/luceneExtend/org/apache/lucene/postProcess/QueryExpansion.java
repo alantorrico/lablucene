@@ -290,7 +290,6 @@ public class QueryExpansion implements PostProcess {
 						.getAverageLength(field));
 				QEModel.setNumberOfDocuments(searcher.maxDoc());
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
