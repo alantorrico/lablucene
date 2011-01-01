@@ -109,7 +109,8 @@ public class MitraReRankingPostProcess extends QueryExpansion {
 		docids = new int[set_size];
 		scores = new float[set_size];
 		for (int i = 0; i < set_size; i++) {
-
+			docids[i] = this.ScoreDoc[i].doc;
+			scores[i] = this.ScoreDoc[i].score;
 		}
 
 		// occurences = resultSet.getOccurrences();
