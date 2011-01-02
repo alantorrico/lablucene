@@ -53,19 +53,18 @@ public class MitraReRankingPostProcess extends QueryExpansion {
 	public TermFreqVector t_tfs_cache[] = null;
 	float mitra_socres[];
 	private boolean qeTag = true;
-	
 
-	public MitraReRankingPostProcess(){
+	public MitraReRankingPostProcess() {
 		super();
 		reset();
 	}
-	
-	public void setQETag(boolean tag){
+
+	public void setQETag(boolean tag) {
 		this.qeTag = tag;
 	}
-	
+
 	public void reset() {
-		qeTag = false; 
+		qeTag = true;
 		idfs = null;
 		tt_cooccur_count = null;
 		set_size = 0;
@@ -91,7 +90,8 @@ public class MitraReRankingPostProcess extends QueryExpansion {
 
 	/**
 	 * compute the mitra Scores and cache up
-	 * @throws Exception 
+	 * 
+	 * @throws Exception
 	 */
 	public void pre_process() throws Exception {
 		logger.info("Starting MitraReRankingPostProcess post-processing.");
@@ -100,8 +100,8 @@ public class MitraReRankingPostProcess extends QueryExpansion {
 		// invertedIndex = index.getInvertedIndex();
 		// lexicon = index.getLexicon();
 		// collStats =
-		int num_doc =this.searcher.maxDoc();
-		
+		int num_doc = this.searcher.maxDoc();
+
 		// this.request = (Request)q;
 
 		// ResultSet resultSet = q.getResultSet();
@@ -140,10 +140,11 @@ public class MitraReRankingPostProcess extends QueryExpansion {
 		this.QueryTermsOccurred = new TIntArrayList[set_size];
 		for (int i = 0; i < set_size; i++) {
 			this.QueryTermsOccurred[i] = new TIntArrayList();
-			
+
 			TermFreqVector tfv = null;
 			try {
-				tfv = this.searcher.getIndexReader().getTermFreqVector(docids[i], field);
+				tfv = this.searcher.getIndexReader().getTermFreqVector(
+						docids[i], field);
 				t_tfs_cache[i] = tfv;
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -179,24 +180,25 @@ public class MitraReRankingPostProcess extends QueryExpansion {
 		try {
 			pre_process();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		assignValues(scores, this.QueryTermsOccurred, set_size);
-		
-		//if qeTag = true; we only keep top Mitra_Reranking_rerankNum docs. Otherwise, all for 
-		int reRankNum = qeTag ? Math.min(Mitra_Reranking_rerankNum, set_size):set_size;
-		
+
+		// if qeTag = true; we only keep top Mitra_Reranking_rerankNum docs.
+		// Otherwise, all for
+		int reRankNum = qeTag ? Math.min(Mitra_Reranking_rerankNum, set_size)
+				: set_size;
+
 		int num = Integer.parseInt(ApplicationSetup.getProperty(
 				"TRECQuerying.endFeedback", "1000"));
 		TopDocCollector cls = new TopDocCollector(num);
 		cls.setInfo(topDoc.getInfo());
 		cls.setInfo_add(this.getInfo());
-		for(int i=0; i < reRankNum; i++){
+//		logger.info("Reranked docs: " + reRankNum + ", " + qeTag);
+		for (int i = 0; i < reRankNum; i++) {
 			cls.collect(this.docids[i], this.scores[i]);
 		}
 		return cls;
-		
 	}
 
 	public float[] getMitraScores() {

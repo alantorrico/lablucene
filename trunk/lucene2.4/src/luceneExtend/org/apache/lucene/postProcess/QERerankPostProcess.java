@@ -1,22 +1,23 @@
 package org.apache.lucene.postProcess;
 
+import gnu.trove.TObjectFloatHashMap;
 
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermFreqVector;
 import org.apache.lucene.search.RBooleanQuery;
 import org.apache.lucene.search.Searcher;
 import org.apache.lucene.search.TopDocCollector;
+import org.apache.lucene.search.model.Idf;
 import org.dutir.lucene.util.ApplicationSetup;
-
-import gnu.trove.THashMap;
-import gnu.trove.TIntDoubleHashMap;
-
+import org.dutir.lucene.util.ExpansionTerms;
+import org.dutir.lucene.util.ExpansionTerms.ExpansionTerm;
 
 /**
- * Fun: expand the query based on Terrier's build-in QE method, and then use
- * the expanded query to rerank the results obtained from the first round
- * retrieval
+ * Fun: expand the query based on Terrier's build-in QE method, and then use the
+ * expanded query to rerank the results obtained from the first round retrieval
  * 
  * @author YeZheng
  * 
@@ -27,15 +28,15 @@ public class QERerankPostProcess extends QueryExpansion {
 			"QERerankPostProcess.effDocumentsNum", "5"));
 	int numberOfTermsAsFeatures = Integer.parseInt(ApplicationSetup
 			.getProperty("QERerankPostProcess.numberOfTermsAsFeatures", "100"));
-	public TIntDoubleHashMap qeScoresMap = new TIntDoubleHashMap();
-	public TIntDoubleHashMap idfMap = new TIntDoubleHashMap();
-	public TIntDoubleHashMap keyFMap = new TIntDoubleHashMap();
+	public TObjectFloatHashMap<String> qeScoresMap = new TObjectFloatHashMap<String>();
+	public TObjectFloatHashMap<String> idfMap = new TObjectFloatHashMap<String>();
+	public TObjectFloatHashMap<String> keyFMap = new TObjectFloatHashMap<String>();
 
-	double qeScores[];
+	float qeScores[];
 
-	private double k_1 = 1.2d;
-	private double b = 0.75d;
-	private double k_3 = 8d;
+	private float k_1 = 1.2f;
+	private float b = 0.75f;
+	private float k_3 = 8f;
 	protected float averageDocumentLength;
 	float numberOfDocuments;
 
@@ -49,7 +50,7 @@ public class QERerankPostProcess extends QueryExpansion {
 	public String getInfo() {
 		if (QEModel != null)
 			return "QERerankPostProcess_" + QEModel.getInfo()
-					+ "_effDocumentsNum=" + effDocumentsNum
+					+ "_doc=" + effDocumentsNum
 					+ "_numberOfTermsAsFeatures=" + numberOfTermsAsFeatures;
 		return "";
 	}
@@ -65,13 +66,14 @@ public class QERerankPostProcess extends QueryExpansion {
 
 	public TopDocCollector postProcess(RBooleanQuery query,
 			TopDocCollector topDoc, Searcher seacher) {
-		reset();
+		this.setup(query, topDoc, seacher);
 		setup();
-
+		reset();
+		
 
 		logger.info("Starting query expansion post-processing.");
 		// get the query expansion model to use
-		
+
 		int set_size = this.ScoreDoc.length;
 		int docids[] = new int[set_size];
 		float scores[] = new float[set_size];
@@ -79,49 +81,77 @@ public class QERerankPostProcess extends QueryExpansion {
 			docids[i] = this.ScoreDoc[i].doc;
 			scores[i] = this.ScoreDoc[i].score;
 		}
-		
-		// get the expanded query terms
-		expandQuery(queryTerms, resultSet);
 
-		qeScores = new double[set_size];
+		// get the expanded query terms
+		expandQuery();
+
+		qeScores = new float[set_size];
 		Arrays.fill(qeScores, 0);
 		// reranking the documents
 		for (int i = 0; i < set_size; i++) {
-			int docLength = documentIndex.getDocumentLength(docids[i]);
-			int[][] terms = directIndex.getTerms(docids[i]);
-			for (int k = 0; k < terms[0].length; k++) {
-				int termid = terms[0][k];
-				int termtf = terms[1][k];
+			float docLength = this.searcher.getFieldLength(field, docids[i]);
+			TermFreqVector tfv = null;
+			try {
+				tfv = this.searcher.getIndexReader().getTermFreqVector(
+						docids[i], field);
+				// t_tfs_cache[i] = tfv;
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			String strterms[] = tfv.getTerms();
+			int freqs[] = tfv.getTermFrequencies();
+
+			// int[][] terms = this.searcher.
+
+			for (int k = 0; k < strterms.length; k++) {
+				String termid = strterms[k];
+				int termtf = freqs[k];
 				if (qeScoresMap.contains(termid)) {
 					// qeScoresMap.get(termid)
-					double keyFrequency = qeScoresMap.get(termid);
+					float keyFrequency = qeScoresMap.get(termid);
 
 					qeScores[i] += idfMap.get(termid)
 							* ((k_3 + 1) * keyFrequency / (k_3 + keyFrequency))
-							* ((k_1 + 1d) * termtf 
-							/ (k_1* ((1 - b) + b * docLength/ averageDocumentLength) + termtf));
+							* ((k_1 + 1d) * termtf / (k_1
+									* ((1 - b) + b * docLength
+											/ averageDocumentLength) + termtf));
 				}
 			}
 			scores[i] = qeScores[i];
 		}
-		HeapSort.descendingHeapSort(scores, docids, occurences, set_size);
+		// HeapSort.descendingHeapSort(scores, docids, occurences, set_size);
+//		int reRankNum = qeTag ? Math.min(Mitra_Reranking_rerankNum, set_size):set_size;
+		
+		int num = Integer.parseInt(ApplicationSetup.getProperty(
+				"TRECQuerying.endFeedback", "1000"));
+		
+		TopDocCollector cls = new TopDocCollector(num);
+		cls.setInfo(topDoc.getInfo());
+		cls.setInfo_add(this.getInfo());
+		for(int i=0; i < docids.length; i++){
+			cls.collect(docids[i], scores[i]);
+		}
+		return cls;
 	}
 
-	public double getScorce(int termid, int termtf, int docLength) {
-		double keyFrequency = qeScoresMap.get(termid);
-		double retV = idfMap.get(termid)
+	public float getScorce(String termid, int termtf, float docLength) {
+		float keyFrequency = qeScoresMap.get(termid);
+		float retV = idfMap.get(termid)
 				* ((k_3 + 1) * keyFrequency / (k_3 + keyFrequency))
-				* ((k_1 + 1d) * termtf / (k_1
+				* ((k_1 + 1f) * termtf / (k_1
 						* ((1 - b) + b * docLength / averageDocumentLength) + termtf));
 		return retV;
 	}
 
-	public void expandQuery(MatchingQueryTerms query, ResultSet resultSet) {
-		expandQuery(query, resultSet, effDocumentsNum);
+	public void expandQuery() {
+		try {
+			expandQuery(effDocumentsNum);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
-	public ExpansionTerms expandQuery(MatchingQueryTerms query,
-			ResultSet resultSet, int epNum) {
+	public ExpansionTerms expandQuery(int epNum) throws Exception {
 		// the number of term to re-weight (i.e. to do relevance feedback) is
 		// the maximum between the system setting and the actual query length.
 		// if the query length is larger than the system setting, it does not
@@ -130,67 +160,85 @@ public class QERerankPostProcess extends QueryExpansion {
 		// we re-weight the number of query length of terms.
 
 		// If no document retrieved, keep the original query.
-		if (resultSet.getResultSize() == 0) {
+		if (this.ScoreDoc.length < 1) {
 			return null;
 		}
 
-		int[] docIDs = resultSet.getDocids();
-		double[] scores = resultSet.getScores();
-		double totalDocumentLength = 0;
+		// int[] docIDs = resultSet.getDocids();
+		// float[] scores = resultSet.getScores();
+		int set_size = this.ScoreDoc.length;
+		int[] docIDs = new int[set_size];
+		float[] scores = new float[set_size];
+		for (int i = 0; i < set_size; i++) {
+			docIDs[i] = this.ScoreDoc[i].doc;
+			scores[i] = this.ScoreDoc[i].score;
+		}
+		float totalDocumentLength = 0;
 
 		// if the number of retrieved documents is lower than the parameter
 		// EXPANSION_DOCUMENTS, reduce the number of documents for expansion
 		// to the number of retrieved documents.
 		int effDocuments = Math.min(docIDs.length, effDocumentsNum);
 		for (int i = 0; i < effDocuments; i++) {
-			totalDocumentLength += documentIndex.getDocumentLength(docIDs[i]);
-			if (logger.isDebugEnabled()) {
-				logger.debug((i + 1) + ": "
-						+ documentIndex.getDocumentNumber(docIDs[i]) + " ("
-						+ docIDs[i] + ") with " + scores[i]);
-			}
+			totalDocumentLength += this.searcher.getFieldLength(field,
+					docIDs[i]);
+			// if (logger.isDebugEnabled()) {
+			// logger.debug((i + 1) + ": "
+			// + documentIndex.getDocumentNumber(docIDs[i]) + " ("
+			// + docIDs[i] + ") with " + scores[i]);
+			// }
 		}
-		ExpansionTerms expansionTerms = new ExpansionTerms(collStats,
-				totalDocumentLength, lexicon);
+		ExpansionTerms expansionTerms = new ExpansionTerms(this.searcher,
+				totalDocumentLength, field);
 
 		for (int i = 0; i < epNum; i++) {
-			int[][] terms = directIndex.getTerms(docIDs[i]);
-			if (terms == null)
-				logger.warn("document "
-						+ documentIndex.getDocumentLength(docIDs[i]) + "("
-						+ docIDs[i] + ") not found");
-			else
-				for (int j = 0; j < terms[0].length; j++)
-					expansionTerms
-							.insertTerm(terms[0][j], (double) terms[1][j]);
+			TermFreqVector tfv = null;
+			try {
+				tfv = this.searcher.getIndexReader().getTermFreqVector(
+						docIDs[i], field);
+//				t_tfs_cache[i] = tfv;
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			String strterms[] = tfv.getTerms();
+			int freqs[] = tfv.getTermFrequencies();
+			for (int j = 0; j < strterms.length; j++)
+				expansionTerms.insertTerm(strterms[j], freqs[j]);
 		}
 
-		expansionTerms.setOriginalQueryTerms(query);
-		SingleTermQuery[] expandedTerms = expansionTerms.getExpandedTerms(
+		
+		ExpansionTerm expandedTerms[] = expansionTerms.getExpandedTerms(
 				numberOfTermsAsFeatures, QEModel);
 
-		for(String term: query.getTerms()){
-			LexiconEntry entry = lexicon.getLexiconEntry(term);
-				int n_t = entry.n_t;
-				qeScoresMap.put(entry.termId, query.getTermWeight(term));
-				idfMap.put(entry.termId, Idf.log((numberOfDocuments - n_t + 0.5d)
-						/ (n_t + 0.5d)));
+		for (String term : this.termSet) {
+//			LexiconEntry entry = lexicon.getLexiconEntry(term);
+//			int n_t = entry.n_t;
+			Term lterm = new Term(field, term);
+			// float TF = searcher.termFreq(term);
+			float n_t = searcher.docFreq(lterm);
+//			qeScoresMap.put(entry.termId, query.getTermWeight(term));
+			//TODO: 
+			qeScoresMap.put(term, 1);
+			idfMap.put(term, Idf.log((numberOfDocuments - n_t + 0.5f)
+					/ (n_t + 0.5f)));
 		}
-		
+
 		for (int i = 0; i < expandedTerms.length; i++) {
-			SingleTermQuery expandedTerm = expandedTerms[i];
+			ExpansionTerm expandedTerm = expandedTerms[i];
 			String strTerm = expandedTerm.getTerm();
-//			if(query.getTermWeight(strTerm) > 0){
-//				continue;
-//			}
-			LexiconEntry entry = lexicon.getLexiconEntry(strTerm);
-			int n_t = entry.n_t;
-			
-			qeScoresMap.adjustOrPutValue(entry.termId, expandedTerm.getWeight(), expandedTerm.getWeight());
-			idfMap.put(entry.termId, Idf.log((numberOfDocuments - n_t + 0.5d)
-					/ (n_t + 0.5d)));
+			// if(query.getTermWeight(strTerm) > 0){
+			// continue;
+			// }
+			String term = expandedTerm.getTerm();
+			Term lterm = new Term(field, term);
+			// float TF = searcher.termFreq(term);
+			float n_t = searcher.docFreq(lterm);
+
+			qeScoresMap.adjustOrPutValue(term,
+					expandedTerm.getWeightExpansion(), expandedTerm.getWeightExpansion());
+			idfMap.put(term, Idf.log((numberOfDocuments - n_t + 0.5f)
+					/ (n_t + 0.5f)));
 		}
-		
 
 		return expansionTerms;
 	}
@@ -200,10 +248,10 @@ public class QERerankPostProcess extends QueryExpansion {
 	 */
 	public static void main(String[] args) {
 		QERerankPostProcess qer = new QERerankPostProcess();
-		qer.qeScoresMap.put(1225, 1225);
-		qer.qeScoresMap.put(294, 1225);
-		qer.qeScoresMap.put(1007, 1225);
-		qer.qeScoresMap.put(536, 1225);
+		qer.qeScoresMap.put("1225", 1225);
+		qer.qeScoresMap.put("294", 1225);
+		qer.qeScoresMap.put("1007", 1225);
+		qer.qeScoresMap.put("536", 1225);
 		if (qer.qeScoresMap.contains(3373)) {
 			System.out.println("bug");
 		}

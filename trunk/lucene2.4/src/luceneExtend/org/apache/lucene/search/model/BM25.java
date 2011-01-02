@@ -29,7 +29,8 @@ public class BM25 extends WeightingModel {
 	 * @return the name of the model
 	 */
 	public final String getInfo() {
-		return "BM25b="+b +"k_1=" + k_1 +"k_3=" + k_3;
+//		return "BM25b="+b +"k_1=" + k_1 +"k_3=" + k_3;
+		return "BM25b=" + b;
 	}
 	/**
 	 * Uses BM25 to compute a weight for a term in a document.

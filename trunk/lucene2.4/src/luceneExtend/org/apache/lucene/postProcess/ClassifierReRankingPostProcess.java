@@ -4,7 +4,11 @@ package org.apache.lucene.postProcess;
 import gnu.trove.TIntHash;
 import gnu.trove.TIntHashSet;
 import gnu.trove.TIntIntHashMap;
+import gnu.trove.TObjectHash;
+import gnu.trove.TObjectHashingStrategy;
+import gnu.trove.TObjectIntHashMap;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -12,6 +16,7 @@ import java.util.HashSet;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermFreqVector;
 import org.apache.lucene.search.RBooleanQuery;
 import org.apache.lucene.search.Searcher;
@@ -19,6 +24,7 @@ import org.apache.lucene.search.TopDocCollector;
 import org.dutir.lucene.evaluation.TRECQrelsInMemory;
 import org.dutir.lucene.util.ApplicationSetup;
 import org.dutir.lucene.util.ExpansionTerms;
+import org.dutir.lucene.util.ExpansionTerms.ExpansionTerm;
 
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
@@ -43,7 +49,7 @@ import weka.core.SelectedTag;
  * 
  */
 public class ClassifierReRankingPostProcess extends QueryExpansion {
-	protected static Logger logger = Logger.getRootLogger();
+	protected static Logger logger = Logger.getLogger("ClassifierReRankingPostProcess");
 	static TRECQrelsInMemory trecR = new TRECQrelsInMemory();
 
 	/**
@@ -66,7 +72,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 	protected int FutureSize = 0;
 	protected FastVector fvNominalVal = null;
 	protected Instances trainingSet = null;
-	protected WeightingModel wmodel = null;
+//	protected WeightingModel wmodel = null;
 
 	TermFreqVector t_tfs_cache[] = null;
 
@@ -112,7 +118,12 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 			TopDocCollector topDoc, Searcher seacher) {
 		setup(query, topDoc, seacher); // it is necessary
 		MitraReRankingPostProcess mitraPP = new MitraReRankingPostProcess();
-		mitraPP.pre_process();
+		try {
+//			mitraPP.pre_process();
+			mitraPP.postProcess(query, topDoc, seacher);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		mitraScores = mitraPP.mitra_socres;
 		t_tfs_cache = mitraPP.t_tfs_cache;
 
@@ -169,18 +180,32 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		}
 
 		qerPP = new QERerankPostProcess();
-		qerPP.setup(manager, q);
-		qerPP.setQueryExpansionModel(QEModel);
-		expansionTerm = qerPP.expandQuery(this.request.getMatchingQueryTerms(),
-				resultSet, positiveNum);
+//		qerPP
+//		qerPP.setQueryExpansionModel(QEModel);
+		qerPP.postProcess(query, topDoc, seacher);
+		try {
+			expansionTerm = qerPP.expandQuery(positiveNum);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 
 		Classifier cModel = getClassifier(classifierName);
 		train(cModel, docids, scores, set_size); 
 
 		// ***************Reranking process*******************************
 		int rNum = Math.min(this.reRankNum, set_size);
-		HeapSort.descendingFirstKHeapSort(scores, docids, occurences, rNum);
+//		HeapSort.descendingFirstKHeapSort(scores, docids, occurences, rNum);
 		// HeapSort.descendingHeapSort(scores, docids, occurences, set_size);
+		int num = Integer.parseInt(ApplicationSetup.getProperty(
+				"TRECQuerying.endFeedback", "1000"));
+		
+		TopDocCollector cls = new TopDocCollector(num);
+		cls.setInfo(topDoc.getInfo());
+		cls.setInfo_add(this.getInfo());
+		for(int i=0; i< rNum && i < docids.length; i++){
+			cls.collect(docids[i], scores[i]);
+		}
+		return cls;
 	}
 
 	/**
@@ -189,7 +214,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 	 * @param classfierName
 	 * @return
 	 */
-	private Classifier getClassifier(String classfierName) {
+	private static Classifier getClassifier(String classfierName) {
 		if (classfierName.equals("NaiveBayes")) {
 			return (Classifier) new NaiveBayes();
 		} else if (classfierName.equals("SVM")
@@ -208,7 +233,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 
 		} else {
 			try {
-				Classifier classifier = (Classifier) Class.forName(classfierName).newInstance();
+				Classifier classifier = (Classifier) Class.forName("weka.classifiers.functions." + classfierName).newInstance();
 				if(classifier instanceof SVMreg){
 					((SVMreg) classifier).setKernel(new NormalizedPolyKernel());
 				}
@@ -221,48 +246,62 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		return null;
 	}
 
-	private int[][] getTerms(int docid, int id) {
-		return this.t_tfs_cache != null ? this.t_tfs_cache[id] : directIndex
-				.getTerms(docid);
+	private TermFreqVector getTerms(int docid, int id) {
+		try {
+			return this.t_tfs_cache != null ? this.t_tfs_cache[id] : this.searcher.getIndexReader().getTermFreqVector(docid, classifierName);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
-	private void train(Classifier model, int[] docids, double scores[],
+	private void train(Classifier model, int[] docids, float scores[],
 			int resSize) {
 		// 
-		TIntIntHashMap map = new TIntIntHashMap();
-		gnu.trove.TIntHashSet querySet = new TIntHashSet();
+		TObjectIntHashMap<String> map = new TObjectIntHashMap<String>();
+//		gnu.trove.TIntHashSet querySet = new TIntHashSet();
 
+		HashSet<String> querySet = new HashSet<String>();
 		int start = 0;
 		fvNominalVal = new FastVector();
 
 		// ///////////////////process query terms/////////////////////////
-		String terms[] = this.request.getMatchingQueryTerms().getTerms();
+		String terms[] = this.termSet.toArray(new String[0]);
 		for (int i = 0; i < terms.length; i++) {
-			LexiconEntry entry = lexicon.getLexiconEntry(terms[i]);
-			if (entry == null) {
+			int df =0;
+			try {
+				df = this.searcher.docFreq(new Term(field, terms[i]));
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			if (df < 1 ) {
 				continue;
 			}
-			querySet.add(entry.termId);
+			querySet.add(terms[i]);
 //			 map.put(entry.termId, start++);
 //			 fvNominalVal.addElement(new Attribute("" + entry.termId));
 		}
 		// /////////////////////ordinary word
 		// attribute//////////////////////////////////////
-		TermsStatistics ts = new TermsStatistics();
-		int t_tfs_cache[][][] = new int[positiveNum + negetiveNum][][];
-		int t_tfs_all_cache[][][] = new int[resSize][][];
+//		TermsStatistics ts = new TermsStatistics();
+		TermFreqVector t_tfs_cache[] = new TermFreqVector[positiveNum + negetiveNum];
+		TermFreqVector t_tfs_all_cache[] = new TermFreqVector[resSize];
 		int cache = 0;
 		for (int i = 0; i < resSize; i++) {
-			int t_tfs[][] = getTerms(docids[i], i);
-			t_tfs_all_cache[i] = t_tfs;
-			for (int k = 0; k < t_tfs[0].length; k++) {
-				ts.insertTerm(t_tfs[0][k], t_tfs[1][k]);
-				String stermid = "" + t_tfs[0][k];
-			}
+			
+			TermFreqVector tfv = getTerms(docids[i], i);
+			t_tfs_all_cache[i] = tfv;
+			String strterms[] = tfv.getTerms();
+			int freqs[] = tfv.getTermFrequencies();
+			//TODO: check
+//			for (int k = 0; k < strterms.length; k++) {
+//				ts.insertTerm(t_tfs[0][k], t_tfs[1][k]);
+//				String stermid = "" + t_tfs[0][k];
+//			}
 			if (i < positiveNum) {
-				t_tfs_cache[cache++] = t_tfs;
+				t_tfs_cache[cache++] = tfv;
 			} else if (resSize - i <= negetiveNum) {
-				t_tfs_cache[cache++] = t_tfs;
+				t_tfs_cache[cache++] = tfv;
 			}
 		}
 		// TermsStatistics.ExpansionTerm[] expTerms = ts.getExpandedTerms(maxN,
@@ -277,19 +316,25 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		// ////////////////////////////////////////////////////////////////
 
 		// ////////////////////////////////////////////////////////////////
-		SingleTermQuery[] expTerms = expansionTerm.getExpandedTerms(
+		ExpansionTerm expTerms[] = expansionTerm.getExpandedTerms(
 				maxNFeatures, QEModel);
 
 		// ////////////////////////////////////////////////////////////////
 
-		System.out.println("Feature Num: " + expTerms.length);
+//		System.out.println("Feature Num: " + expTerms.length);
 		for (int i = 0; i < expTerms.length; i++) {
 			String term = expTerms[i].getTerm();
-			lexicon.findTerm(term);
-			int id = lexicon.getTermId();
+//			lexicon.findTerm(term);
+//			int id = lexicon.getTermId();
+			String id = expTerms[i].getTerm();
 			if (includeQueryTermTag) {
 				map.put(id, start++);
-				fvNominalVal.addElement(new Attribute("" + id));
+				fvNominalVal.addElement(new Attribute(id));
+			}else{
+				if(!querySet.contains(id)){
+					map.put(id, start++);
+					fvNominalVal.addElement(new Attribute(id));
+				}
 			}
 		}
 
@@ -326,10 +371,14 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 				doc_subscript = resSize - positiveNum + (i - negetiveNum);
 				docid = docids[doc_subscript];
 			}
-			int t_tfs[][] = t_tfs_cache[i];
-
+			
+//			int t_tfs[][] = t_tfs_cache[i];
+			TermFreqVector tfv = t_tfs_cache[i]; //TODO: check
+//			t_tfs_all_cache[i] = tfv;
+			String strterms[] = tfv.getTerms();
+			int freqs[] = tfv.getTermFrequencies();
 			// make instance
-			Instance example = makeInstance(t_tfs, map, docid, doc_subscript);
+			Instance example = makeInstance(strterms, freqs, map, docid, doc_subscript);
 //			if (i < positiveNum) {
 //				 example.setValue(ClassAttribute, "positive");
 //			} else {
@@ -355,37 +404,44 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 
 		int postProSize = Math.min(this.reRankNum, resSize);
 
-		ClassifierStat cstat = new ClassifierStat(postProSize, this.queryID);
+		ClassifierStat cstat = new ClassifierStat(postProSize, this.topicId);
 		cstat.docids = Arrays.copyOfRange(docids, 0, postProSize);
 		cstat.original_scores = Arrays.copyOfRange(scores, 0, postProSize);
 		cstat.positiveNum = positiveNum;
 		cstat.negetiveNum = this.negetiveNum;
 
-		double normaliser = scores[0];
+		float normaliser = scores[0];
 		for (int i = 0; i < postProSize; i++) {
 			int docid = docids[i];
-			int[][] t_tfs = t_tfs_all_cache[i];
-			Instance example = makeInstance(t_tfs, map, docid, i);
+//			int[][] t_tfs = t_tfs_all_cache[i];
+			TermFreqVector tfv = t_tfs_all_cache[i]; //TODO: check
+//			t_tfs_all_cache[i] = tfv;
+			String strterms[] = tfv.getTerms();
+			int freqs[] = tfv.getTermFrequencies();
+			// make instance
+			Instance example = makeInstance(strterms, freqs, map, docid, i);
+//			Instance example = makeInstance(t_tfs, map, docid, i);
 			// logger.info("making " + i +" instance");
 			example.setDataset(trainingSet);
 
 			try {
 				double cscore[] = model.distributionForInstance(example);
-				String docno = this.documentIndex.getDocumentNumber(docid);
+//				String docno = this.documentIndex.getDocumentNumber(docid);
+				
 				cstat.c_scores[i] = cscore[0];
-				cstat.docnos[i] = docno;
+//				cstat.docnos[i] = docno;
 				// System.out.println(i + ": "+ cscore[0]+ ", " +cscore[1]);
 				if (i < 0) {
 					// scores[i] = cscore[0];
 				} else {
 					if (cscore[0] <= 0.0001) {
-						scores[i] = Double.NEGATIVE_INFINITY;
+						scores[i] = Float.NEGATIVE_INFINITY;
 						// System.out.println("NEGATIVE_INFINITY : " + i + ", "
 						// + cscore[0]);
 					} else {
 						double tempD = scores[i] / normaliser;
-						scores[i] = (1-k) * tempD + k * cscore[0];
-//						System.out.println(tempD + "," + cscore[0]);
+						scores[i] = (float) ((1-k) * tempD + k * cscore[0]);
+//						System.out.println(example.toString() + "\n" + tempD + "," + cscore[0]);
 					}
 				}
 			} catch (Exception e) {
@@ -396,15 +452,15 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 			logger.info(cstat.getInfo());
 	}
 
-	private Instance makeInstance(int t_tfs[][], TIntIntHashMap map, int docid,
+	private Instance makeInstance(String[] strterms, int[] freqs,
+			TObjectIntHashMap<String> map, int docid,
 			int id) {
-		int dlen = this.documentIndex.getDocumentLength(docid);
-
+		float dlen = this.searcher.getFieldLength(field, docid);
 		Instance example = new Instance(this.FutureSize);
 		int count = 0;
-		for (int k = 0; k < t_tfs[0].length; k++) {
-			if (map.contains(t_tfs[0][k])) {
-				int pos = map.get(t_tfs[0][k]);
+		for (int k = 0; k < strterms.length; k++) {
+			if (map.contains(strterms[k])) {
+				int pos = map.get(strterms[k]);
 				count++;
 
 				// LexiconEntry lEntry = lexicon.getLexiconEntry(t_tfs[0][k]);
@@ -414,7 +470,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 				//
 				// double tmps = wmodel.score(t_tfs[1][k], dlen);
 
-				double tmps = this.qerPP.getScorce(t_tfs[0][k], t_tfs[1][k],
+				double tmps = this.qerPP.getScorce(strterms[k], freqs[k],
 						dlen);
 				example.setValue(pos, tmps); // todo: change the weighting
 				// formula
@@ -423,7 +479,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		// add other features
 		// docLenAtt
 		example.setValue(docLenAtt, Math.abs(dlen
-				- this.collStats.getAverageDocumentLength()));
+				- this.searcher.getAverageLength(field)));
 		// mitra scores att
 		if (Mitra_tag) {
 			example.setValue(mitraAtt, this.mitraScores[id]);
@@ -452,14 +508,14 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		int size;
 		public final String docnos[];
 		int docids[];
-		double original_scores[];
+		float original_scores[];
 		double c_scores[];
 		String qid;
 
 		public ClassifierStat(int size, String queryid) {
 			this.size = size;
 			this.docids = new int[size];
-			this.original_scores = new double[size];
+			this.original_scores = new float[size];
 			this.c_scores = new double[size];
 			this.docnos = new String[size];
 			this.qid = queryid;
@@ -574,6 +630,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		// TODO Auto-generated method stub
 		// 1. the ratio of relevant in top 50 k
 		// 2. the ratio of in the range of 15-30
+		Classifier clf = getClassifier("SVM");
 	}
 
 }
