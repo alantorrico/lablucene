@@ -26,6 +26,7 @@ public class RDefaultSimilarity extends Similarity {
   /** Implemented as <code>1 / (distance + 1)</code>. */
   public float sloppyFreq(int distance) {
     return 1.0f / (distance + 1);
+//	  return 1f; 
   }
     
   /** Implemented as <code>log(numDocs/(docFreq+1)) + 1</code>. */

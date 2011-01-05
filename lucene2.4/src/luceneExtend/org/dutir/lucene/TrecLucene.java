@@ -310,6 +310,7 @@ public class TrecLucene {
 				evaluationFilename.add(args[pos]);
 			} else {
 				unknownOption = args[pos];
+				System.out.println("error opt:" + unknownOption);
 				return ERROR_UNKNOWN_OPTION;
 			}
 			pos++;

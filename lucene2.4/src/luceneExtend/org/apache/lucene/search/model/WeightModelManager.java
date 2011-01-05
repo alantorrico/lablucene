@@ -95,6 +95,9 @@ public class WeightModelManager {
 			float df = tdocs.totalHits;
 			//the value of termFreq is estimated as following.  Refer to Indri to find a better solution.
 			float termFreq = (float) (df * Math.sqrt(2 + query.getSlop()));
+			if(termFreq > maxDoc){
+				System.out.println("bingo");
+			}
 //			float df = searcher.maxDoc() /100f; 
 //			float termFreq = df * 2; 
 //			averageFiledLength = (numberOfTokens - maxDoc *(query.getSlop() - 1 ) )/(float)maxDoc;
@@ -117,6 +120,44 @@ public class WeightModelManager {
 }
 	
 	
+	/**
+	 * 
+	 * @param searcher
+	 * @param field
+	 * @return a unspecified model (w.r.t Query), df and ctf are set to 0. 
+	 */
+	public static WeightingModel getFromPropertyFile(Searcher searcher, String field){
+	    String strmodel = null;
+		strmodel = ApplicationSetup.getProperty("Lucene.Search.WeightingModel", "BM25");
+		if(strmodel.indexOf(".") == -1){
+			strmodel = "org.apache.lucene.search.model." + strmodel;
+		}
+		try {
+			WeightingModel model = (WeightingModel) Class.forName(strmodel).newInstance();
+			int maxDoc = searcher.maxDoc();
+			float averageFiledLength = searcher.getAverageLength(field);
+			float numberOfTokens = searcher.getNumTokens(field);
+			float numberOfUniqueTerms = searcher.getNumUniqTokens(field);
+			
+//			TermsCache.Item item = tcache.getItem(query.getTerm(), searcher);
+			float df = 0;
+			float termFreq = 0;
+			model.prepare(maxDoc, 
+						averageFiledLength, numberOfTokens,
+						numberOfUniqueTerms, df, 1, termFreq);
+
+			return model;
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	return null;
+}
 	
 	public static WeightingModel getFromPropertyFile(){
 	    String model = null;

@@ -84,7 +84,7 @@ public class DFRRPhraseScorer extends RPhraseScorer {
 	}
 
 	static double getTimes(int[] p1, int[] p2, int winSize, int docLen) {
-		int proxType = 1;
+		int proxType = 2;
 		if (proxType == 1) {// HAL
 			return Distance.unorderHALTimes(p1, p2, winSize);
 		} else if (proxType == 2) {// unorder
@@ -101,59 +101,41 @@ public class DFRRPhraseScorer extends RPhraseScorer {
 
 	int counter = 0;
 
-	@Override
-	public float score(int currentDoc) {
-
-		if (freq == 0 || this.doc() != currentDoc)
-			return 0.0f;
-
-		float docLength = 0f;
-		float norm = Similarity.decodeNorm(this.norms[currentDoc]);
-		docLength = 1 / (norm * norm);
-
-		float rscore = value; // weightValue equals to the boost
-
-		float matchingNGrams = freq;
-
-		final int numberOfNGrams = (int) ((docLength > 0 && docLength < slop) ? 1
-				: docLength - slop + 1);
-
-		double score = 0.0d;
-
-		// apply Norm2 to pf?
-		double matchingNGramsNormalised = matchingNGrams;
-
-		double background = numberOfNGrams;
-
-		double p = 1.0D / background;
-		double q = 1.0d - p;
-		score = -gf.compute_log(background + 1.0d) * REC_LOG_2
-				+ gf.compute_log(matchingNGramsNormalised + 1.0d) * REC_LOG_2
-				+ gf.compute_log(background - matchingNGramsNormalised + 1.0d)	* REC_LOG_2 
-				- matchingNGramsNormalised * Math.log(p)* REC_LOG_2 
-				- (background - matchingNGramsNormalised)* Math.log(q) * REC_LOG_2;
-		score = score / (1.0d + matchingNGramsNormalised);
-		
-		
-		
-		// System.out.println("1:" + gf.compute_log(matchingNGramsNormalised +
-		// 1.0d));
-		// System.out.println("2:" + gf.compute_log(background -
-		// matchingNGramsNormalised
-		// + 1.0d));
-		// System.out.println("3:" + gf.compute_log(background + 1.0d));
-		// System.out.println("do score: " + this.doc() + "," + currentDoc);
-
-//		if (background + 1.0d <= 0 || matchingNGramsNormalised + 1.0d <= 0
-//				|| background - matchingNGramsNormalised + 1.0d <= 0) {
-//			System.out.println(currentDoc + ":|" + this.doc() + ", " + freq
-//					+ ", " + numberOfNGrams + ", " + score + ", "
-//					+ matchingNGramsNormalised + ", " + docLength + "|");
-//			System.exit(1);
-//		}
-
-		return (float) (rscore * score);
-	}
+//	@Override
+//	public float score(int currentDoc) {
+//
+//		if (freq == 0 || this.doc() != currentDoc)
+//			return 0.0f;
+//
+//		float docLength = 0f;
+//		float norm = Similarity.decodeNorm(this.norms[currentDoc]);
+//		docLength = 1 / (norm * norm);
+//
+//		float rscore = value; // weightValue equals to the boost
+//
+//		float matchingNGrams = freq;
+//
+//		final int numberOfNGrams = (int) ((docLength > 0 && docLength < slop) ? 1
+//				: docLength - slop + 1);
+//
+//		double score = 0.0d;
+//
+//		// apply Norm2 to pf?
+//		double matchingNGramsNormalised = matchingNGrams;
+//
+//		double background = numberOfNGrams;
+//
+//		double p = 1.0D / background;
+//		double q = 1.0d - p;
+//		score = -gf.compute_log(background + 1.0d) * REC_LOG_2
+//				+ gf.compute_log(matchingNGramsNormalised + 1.0d) * REC_LOG_2
+//				+ gf.compute_log(background - matchingNGramsNormalised + 1.0d)	* REC_LOG_2 
+//				- matchingNGramsNormalised * Math.log(p)* REC_LOG_2 
+//				- (background - matchingNGramsNormalised)* Math.log(q) * REC_LOG_2;
+//		score = score / (1.0d + matchingNGramsNormalised);
+//
+//		return (float) (rscore * score);
+//	}
 
 	/**
 	 * @param args

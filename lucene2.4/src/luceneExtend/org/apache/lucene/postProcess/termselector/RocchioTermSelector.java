@@ -22,7 +22,8 @@ public class RocchioTermSelector extends TermSelector{
 	protected int EXPANSION_MIN_DOCUMENTS;
 	String termSelector = ApplicationSetup.getProperty("rocchio.termSelector", "DFRTermSelector");
 	String addInfo = "";
-	
+	private static int type = Integer.parseInt((ApplicationSetup.getProperty("rocchio.weighteType", "0")));
+
 	public RocchioTermSelector(){
 		super();
 	}
@@ -101,8 +102,7 @@ public class RocchioTermSelector extends TermSelector{
 		}
 	}
 	
-	private static int type = Integer.parseInt((ApplicationSetup.getProperty("rocchio.weighteType", "0")));
-	private void norm(float[] scores) {
+		private void norm(float[] scores) {
 		if(type == 0){
 			return;
 		}else if(type ==1){
