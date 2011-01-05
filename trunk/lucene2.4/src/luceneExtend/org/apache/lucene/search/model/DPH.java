@@ -18,6 +18,7 @@ public class DPH extends WeightingModel {
 
 	/* (non-Javadoc)
 	 * @see org.apache.lucene.search.model.WeightingModel#score(float, float)
+	 * Note: tf must > 1 (for PhraseQuery), or the return value could be negative. 
 	 */
 	@Override
 	public float score(float tf, float docLength) {
@@ -28,7 +29,7 @@ public class DPH extends WeightingModel {
  			 * (tf*i.log ((tf*
 			averageDocumentLength/docLength) *
 			( numberOfDocuments/termFrequency) )
- 			   + 0.5d* Idf.log((float) (2d*Math.PI*tf*(1d-f)))
+ 			   + 0.5d* Idf.log((float) (2f*Math.PI*tf*(1f-f)))
  			 ));
 	}
 	

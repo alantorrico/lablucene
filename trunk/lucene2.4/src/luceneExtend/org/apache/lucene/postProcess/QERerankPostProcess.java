@@ -1,6 +1,7 @@
 package org.apache.lucene.postProcess;
 
 import gnu.trove.TObjectFloatHashMap;
+import gnu.trove.TObjectIntHashMap;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -10,9 +11,13 @@ import org.apache.lucene.index.TermFreqVector;
 import org.apache.lucene.search.RBooleanQuery;
 import org.apache.lucene.search.Searcher;
 import org.apache.lucene.search.TopDocCollector;
+import org.apache.lucene.search.model.BM25;
 import org.apache.lucene.search.model.Idf;
+import org.apache.lucene.search.model.WeightModelManager;
+import org.apache.lucene.search.model.WeightingModel;
 import org.dutir.lucene.util.ApplicationSetup;
 import org.dutir.lucene.util.ExpansionTerms;
+import org.dutir.lucene.util.TermsCache;
 import org.dutir.lucene.util.ExpansionTerms.ExpansionTerm;
 
 /**
@@ -28,14 +33,21 @@ public class QERerankPostProcess extends QueryExpansion {
 			"QERerankPostProcess.effDocumentsNum", "5"));
 	int numberOfTermsAsFeatures = Integer.parseInt(ApplicationSetup
 			.getProperty("QERerankPostProcess.numberOfTermsAsFeatures", "100"));
+	
+	/**
+	 * store the weighs from the QE process. 
+	 */
 	public TObjectFloatHashMap<String> qeScoresMap = new TObjectFloatHashMap<String>();
 	public TObjectFloatHashMap<String> idfMap = new TObjectFloatHashMap<String>();
+	public TObjectFloatHashMap<String> dfMap = new TObjectFloatHashMap<String>();
 	public TObjectFloatHashMap<String> keyFMap = new TObjectFloatHashMap<String>();
-
+	WeightingModel wmodel = null;
+	
+	
 	float qeScores[];
 
 	private float k_1 = 1.2f;
-	private float b = 0.75f;
+	private float b = 0.35f;
 	private float k_3 = 8f;
 	protected float averageDocumentLength;
 	float numberOfDocuments;
@@ -44,6 +56,7 @@ public class QERerankPostProcess extends QueryExpansion {
 		qeScores = null;
 		qeScoresMap.clear();
 		idfMap.clear();
+		dfMap.clear();
 		keyFMap.clear();
 	}
 
@@ -56,6 +69,10 @@ public class QERerankPostProcess extends QueryExpansion {
 	}
 
 	public void setup() {
+		wmodel = WeightModelManager.getFromPropertyFile(searcher, field);
+		if(wmodel instanceof BM25){
+			wmodel.setParameter(0.75f);
+		}
 		averageDocumentLength = this.searcher.getAverageLength(field);
 		try {
 			numberOfDocuments = this.searcher.maxDoc();
@@ -63,7 +80,8 @@ public class QERerankPostProcess extends QueryExpansion {
 			e.printStackTrace();
 		}
 	}
-
+	static TermsCache tcache = TermsCache.getInstance();
+	
 	public TopDocCollector postProcess(RBooleanQuery query,
 			TopDocCollector topDoc, Searcher seacher) {
 		this.setup(query, topDoc, seacher);
@@ -83,7 +101,11 @@ public class QERerankPostProcess extends QueryExpansion {
 		}
 
 		// get the expanded query terms
-		expandQuery();
+		try {
+			expandQuery(effDocumentsNum);
+		} catch (Exception e1) {
+			e1.printStackTrace();
+		}
 
 		qeScores = new float[set_size];
 		Arrays.fill(qeScores, 0);
@@ -101,20 +123,35 @@ public class QERerankPostProcess extends QueryExpansion {
 			String strterms[] = tfv.getTerms();
 			int freqs[] = tfv.getTermFrequencies();
 
-			// int[][] terms = this.searcher.
-
+			int querypos[] = new int[this.termSet.size()];
+			TermFreqVector  qtfv[] = new TermFreqVector[this.termSet.size()];
+			int pos = 0;
+			Arrays.fill(querypos, -1);
+			
 			for (int k = 0; k < strterms.length; k++) {
 				String termid = strterms[k];
 				int termtf = freqs[k];
+				
+				if(this.termSet.contains(termid)){
+					querypos[pos] = k;
+					qtfv[pos++] = tfv;
+				}
+				
 				if (qeScoresMap.contains(termid)) {
-					// qeScoresMap.get(termid)
 					float keyFrequency = qeScoresMap.get(termid);
 
-					qeScores[i] += idfMap.get(termid)
-							* ((k_3 + 1) * keyFrequency / (k_3 + keyFrequency))
-							* ((k_1 + 1d) * termtf / (k_1
-									* ((1 - b) + b * docLength
-											/ averageDocumentLength) + termtf));
+					float termFreq = getTermFreq(termid);
+					wmodel.setTermFrequency(termFreq);
+					wmodel.setKeyFrequency(keyFrequency);
+					wmodel.setDocumentFrequency(dfMap.get(termid));
+					float retV = wmodel.score(termtf, docLength);
+					
+//					qeScores[i] += idfMap.get(termid)
+//							* ((k_3 + 1) * keyFrequency / (k_3 + keyFrequency))
+//							* ((k_1 + 1d) * termtf / (k_1
+//									* ((1 - b) + b * docLength
+//											/ averageDocumentLength) + termtf));
+					qeScores[i] += retV;
 				}
 			}
 			scores[i] = qeScores[i];
@@ -134,29 +171,34 @@ public class QERerankPostProcess extends QueryExpansion {
 		return cls;
 	}
 
+	public float getTermFreq(String term){
+		TermsCache.Item item = tcache.getItem(new Term(field, term), searcher);
+		float df = item.df;
+		float termFreq = item.ctf;
+		return termFreq;
+	}
 	public float getScorce(String termid, int termtf, float docLength) {
 		float keyFrequency = qeScoresMap.get(termid);
-		float retV = idfMap.get(termid)
-				* ((k_3 + 1) * keyFrequency / (k_3 + keyFrequency))
-				* ((k_1 + 1f) * termtf / (k_1
-						* ((1 - b) + b * docLength / averageDocumentLength) + termtf));
+//		float retV = idfMap.get(termid)
+//				* ((k_3 + 1) * keyFrequency / (k_3 + keyFrequency))
+//				* ((k_1 + 1f) * termtf / (k_1
+//						* ((1 - b) + b * docLength / averageDocumentLength) + termtf));
+		float termFreq = getTermFreq(termid);
+		wmodel.setTermFrequency(termFreq);
+		wmodel.setKeyFrequency(keyFrequency);
+		wmodel.setDocumentFrequency(dfMap.get(termid));
+		float retV = wmodel.score(termtf, docLength);
+		
 		return retV;
 	}
 
-	public void expandQuery() {
-		try {
-			expandQuery(effDocumentsNum);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
 
 	public ExpansionTerms expandQuery(int epNum) throws Exception {
 		// the number of term to re-weight (i.e. to do relevance feedback) is
 		// the maximum between the system setting and the actual query length.
 		// if the query length is larger than the system setting, it does not
 		// make sense to do relevance feedback for a portion of the query.
-		// Therefore,
+		// Therefore, 
 		// we re-weight the number of query length of terms.
 
 		// If no document retrieved, keep the original query.
@@ -221,6 +263,7 @@ public class QERerankPostProcess extends QueryExpansion {
 			qeScoresMap.put(term, 1);
 			idfMap.put(term, Idf.log((numberOfDocuments - n_t + 0.5f)
 					/ (n_t + 0.5f)));
+			dfMap.put(term, n_t);
 		}
 
 		for (int i = 0; i < expandedTerms.length; i++) {
@@ -238,6 +281,7 @@ public class QERerankPostProcess extends QueryExpansion {
 					expandedTerm.getWeightExpansion(), expandedTerm.getWeightExpansion());
 			idfMap.put(term, Idf.log((numberOfDocuments - n_t + 0.5f)
 					/ (n_t + 0.5f)));
+			dfMap.put(term, n_t);
 		}
 
 		return expansionTerms;

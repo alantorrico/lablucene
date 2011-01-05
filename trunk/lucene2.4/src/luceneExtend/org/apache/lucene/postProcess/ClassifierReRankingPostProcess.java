@@ -109,7 +109,7 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 	 * @see uk.ac.gla.terrier.querying.PostProcess#getInfo()
 	 */
 	public String getInfo() {
-		return "Classifier_" + classifierName + "_pNum=" + positiveNum
+		return "" + classifierName + "_pNum=" + positiveNum
 				+ "_nNum=" + negetiveNum + "_rNum=" + reRankNum
 				+ "_maxNFeatures=" + maxNFeatures + "_k=" + k;
 	}
@@ -119,7 +119,6 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		setup(query, topDoc, seacher); // it is necessary
 		MitraReRankingPostProcess mitraPP = new MitraReRankingPostProcess();
 		try {
-//			mitraPP.pre_process();
 			mitraPP.postProcess(query, topDoc, seacher);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -127,42 +126,8 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		mitraScores = mitraPP.mitra_socres;
 		t_tfs_cache = mitraPP.t_tfs_cache;
 
-//		CollectionStatistics collectionStatistics = index
-//				.getCollectionStatistics();
-		// get the query expansion model to use
-		String qeModel = ApplicationSetup.getProperty(
-				"Lucene.QueryExpansion.Model", "KL");
-//		if (qeModel == null || qeModel.length() == 0) {
-//			logger.warn("qemodel control not set for QueryExpansion"
-//					+ " post process. Using default model Bo1");
-//			qeModel = "Bo1";
-//		}
-		
-		
-		
-//		setQueryExpansionModel(getQueryExpansionModel(qeModel));
-//		if (directIndex == null) {
-//			logger
-//					.error("This index does not have a direct index. Query expansion disabled!!");
-//			return;
-//		}
-//		
-//		wmodel = (WeightingModel) manager.getWeightingModel(((Request) q)
-//				.getWeightingModel());
-//		wmodel.setNumberOfTokens((double) collectionStatistics
-//				.getNumberOfTokens());
-//		wmodel.setNumberOfDocuments((double) collectionStatistics
-//				.getNumberOfDocuments());
-//		wmodel.setAverageDocumentLength((double) collectionStatistics
-//				.getAverageDocumentLength());
-//		wmodel.setNumberOfUniqueTerms((double) collectionStatistics
-//				.getNumberOfUniqueTerms());
-//		wmodel.setNumberOfPointers((double) collectionStatistics
-//				.getNumberOfPointers());
-
 		// in order to save the time from references to the arrays, we create
 		// local references
-//		ResultSet resultSet = q.getResultSet();
 		int set_size = this.ScoreDoc.length;
 		int docids[] = new int[set_size];
 		scores = new float[set_size];
@@ -180,8 +145,6 @@ public class ClassifierReRankingPostProcess extends QueryExpansion {
 		}
 
 		qerPP = new QERerankPostProcess();
-//		qerPP
-//		qerPP.setQueryExpansionModel(QEModel);
 		qerPP.postProcess(query, topDoc, seacher);
 		try {
 			expansionTerm = qerPP.expandQuery(positiveNum);

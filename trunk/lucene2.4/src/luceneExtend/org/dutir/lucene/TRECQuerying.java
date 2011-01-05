@@ -387,7 +387,7 @@ public class TRECQuerying {
 															// info of basic
 															// retrieval model.
 			if(ApplicationSetup.PostProcessTag) setExpansionFileName(collector);
-			for (int i = 0; i < postList.size(); i++) {
+			for (int i = 0; ApplicationSetup.PostProcessTag && i < postList.size(); i++) {
 				// change TopDocCollector according to the post processing
 				// algorithm
 				PostProcess pp = (PostProcess) Class.forName(postList.get(i))
