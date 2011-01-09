@@ -35,16 +35,19 @@ public class PL2 extends WeightingModel {
 	 *         tf and docLength, and other preset parameters
 	 */
 	public final float score(float tf, float docLength) {
-		float TF =
+		float tfn =
 			tf * Idf.log(1.0f + (c * averageDocumentLength) / docLength);
-		float NORM = 1.0f / (TF + 1f);
+		float NORM = 1.0f / (tfn + 1f);
 		float f = (1.0f * termFrequency) / (1.0f * numberOfDocuments);
-		return NORM
+		float value = NORM
 			* keyFrequency
-			* (TF * Idf.log(1.0f / f)
+			* (tfn * Idf.log(1.0f / f)
 				+ f * Idf.REC_LOG_2_OF_E
-				+ 0.5f * Idf.log((float) (2 * Math.PI * TF))
-				+ TF * (Idf.log(TF) - Idf.REC_LOG_2_OF_E));
+				+ 0.5f * Idf.log((float) (2 * Math.PI * tfn))
+				+ tfn * (Idf.log(tfn) - Idf.REC_LOG_2_OF_E));
+//		if(value < 0) System.out.println("" + tfn +", " + NORM +", " + f +" = " + value);
+//		return value > 0 ? value: 0;
+		return value;
 	}
 	
 	public float unseenScore(float docLength){
