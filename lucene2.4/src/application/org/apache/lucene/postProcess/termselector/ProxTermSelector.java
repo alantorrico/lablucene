@@ -173,8 +173,6 @@ public class ProxTermSelector extends TermSelector {
 			term.setWeightExpansion(term.getWeightExpansion() / normaliser);
 			termMap.put(term.getTerm(), term);
 		}
-
-		
 	}
 
 	void print(float[] array) {
@@ -231,7 +229,6 @@ public class ProxTermSelector extends TermSelector {
 		}else if (proxType == 4){
 			return Distance.unorderGaussianTimes(p1, p2, winSize, nDist);
 		}
-		
 		return 0; 
 	}
 	
