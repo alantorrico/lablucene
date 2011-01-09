@@ -129,6 +129,7 @@ abstract class RPhraseScorer extends RScorer {
 		float rscore = value ; //weightValue equals to the boost
 		if(this.doc() == currentDoc){
 			rscore *= weightmodel.score(freq, length);
+//			System.out.println(rscore/0.3);
 		}else{
 			rscore *= weightmodel.unseenScore(length);
 		}

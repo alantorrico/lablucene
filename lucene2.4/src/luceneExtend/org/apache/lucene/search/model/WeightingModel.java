@@ -12,22 +12,22 @@ public abstract class WeightingModel implements Serializable,Cloneable {
 	/** The class used for computing the idf values.*/
 	protected Idf i = null;
 	/** The average length of documents in the collection.*/
-	protected float averageDocumentLength;
+	public float averageDocumentLength;
 	/** The term frequency in the query.*/
-	protected float keyFrequency;
+	public float keyFrequency;
 	/** The document frequency of the term in the collection.*/
-	protected float documentFrequency;
+	public float documentFrequency;
 	/** The term frequency in the collection.*/
-	protected float termFrequency;
+	public float termFrequency;
 	/** The number of documents in the collection.*/
-	protected float numberOfDocuments;
+	public float numberOfDocuments;
 	/** The number of tokens in the collections. */
-	protected float numberOfTokens;
+	public float numberOfTokens;
 	/** The parameter c. This defaults to 1.0, but should be set using in the constructor
 	  * of each child weighting model to the sensible default for that weighting model. */
-	protected float c = Float.parseFloat(ApplicationSetup.getProperty("wm.c", "1.0f"));
+	public float c = Float.parseFloat(ApplicationSetup.getProperty("wm.c", "1.0f"));
 	/** Number of unique terms in the collection */
-	protected float numberOfUniqueTerms;	
+	public float numberOfUniqueTerms;	
 
 	/**
 	 * A default constructor that initialises the idf i attribute

@@ -68,6 +68,7 @@ public class WeightModelManager {
 	    String strmodel = null;
 	    String field = query.getTerms()[0].field();
 		strmodel = ApplicationSetup.getProperty("Lucene.Search.WeightingModel", "BM25");
+//		strmodel = "BM25";
 		if(strmodel.indexOf(".") == -1){
 			strmodel = "org.apache.lucene.search.model." + strmodel;
 		}
@@ -94,10 +95,12 @@ public class WeightModelManager {
 			TopDocs tdocs = searcher.search(pquery, 2);
 			float df = tdocs.totalHits;
 			//the value of termFreq is estimated as following.  Refer to Indri to find a better solution.
-			float termFreq = (float) (df * Math.sqrt(2 + query.getSlop()));
-			if(termFreq > maxDoc){
-				System.out.println("bingo");
-			}
+			float termFreq = (float) (df * Idf.log(2 + query.getSlop()));
+//			float termFreq = maxDoc / 50f;
+			
+//			if(termFreq > maxDoc){
+//				System.out.println("bingo");
+//			}
 //			float df = searcher.maxDoc() /100f; 
 //			float termFreq = df * 2; 
 //			averageFiledLength = (numberOfTokens - maxDoc *(query.getSlop() - 1 ) )/(float)maxDoc;

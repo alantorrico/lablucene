@@ -161,7 +161,10 @@ public class RPhraseQuery extends RQuery {
       String pModel = ApplicationSetup.getProperty("proximity.model", "DFR");
       if(pModel.equalsIgnoreCase("DFR")){
     	  scorer = new DFRRPhraseScorer(this, tps, getPositions(), similarity, slop, reader.norms(field));
-      }else{
+      }else if(pModel.equalsIgnoreCase("BiL2")){
+    	  scorer = new BiL2RPhraseScorner(this, tps, getPositions(), similarity, slop, reader.norms(field));
+      }
+      else{
     	  if (slop == 0)				  // optimize exact case
           {
         	  scorer =  new RExactPhraseScorer(this, tps, getPositions(), similarity,
