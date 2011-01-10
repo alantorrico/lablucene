@@ -20,6 +20,7 @@ import java.util.Random;
 import java.util.zip.GZIPOutputStream;
 
 import org.apache.log4j.Logger;
+import org.apache.lucene.OutputFormat;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.postProcess.PostProcess;
@@ -686,11 +687,11 @@ public class TRECQuerying {
 		resultFile = null;
 	}
 
-	/** interface for adjusting the output of TRECQuerying */
-	public static interface OutputFormat {
-		public void printResults(String queryID, final PrintWriter pw,
-				final TopDocCollector collector);
-	}
+//	/** interface for adjusting the output of TRECQuerying */
+//	public static interface OutputFormat {
+//		public void printResults(String queryID, final PrintWriter pw,
+//				final TopDocCollector collector);
+//	}
 
 	String docidField = null;
 
@@ -702,91 +703,91 @@ public class TRECQuerying {
 		return docidField;
 	}
 
-	static class TRECDocnoOutputFormat implements OutputFormat {
-		Searcher searcher;
-
-		public TRECDocnoOutputFormat(Searcher searcher) {
-			this.searcher = searcher;
-		}
-
-		String docidField = null;
-
-		private String getIdFieldName() {
-			if (docidField == null) {
-				docidField = ApplicationSetup.getProperty("TrecDocTags.idtag",
-						"DOCNO");
-			}
-			return docidField;
-		}
-
-		/**
-		 * Prints the results for the given search request, using the specified
-		 * destination.
-		 * 
-		 * @param pw
-		 *            PrintWriter the destination where to save the results.
-		 */
-		public void printResults(String queryID, final PrintWriter pw,
-				final TopDocCollector collector) {
-			TopDocs topDocs = collector.topDocs();
-
-			int len = topDocs.totalHits;
-			int maximum = Math.min(topDocs.scoreDocs.length, end);
-
-			// if (minimum > set.getResultSize())
-			// minimum = set.getResultSize();
-			final String iteration = ITERATION + "0";
-			final String queryIdExpanded = queryID + " " + iteration + " ";
-			final String methodExpanded = " " + "LabLucene"
-					+ ApplicationSetup.EOL;
-			StringBuilder sbuffer = new StringBuilder();
-			// the results are ordered in descending order
-			// with respect to the score.
-			int limit = 10000;
-			int counter = 0;
-			for (int i = start; i < maximum; i++) {
-				int docid = topDocs.scoreDocs[i].doc;
-
-				Document doc = null;
-				String filename = null;
-				try {
-					doc = searcher.doc(docid);
-					filename = doc.get(getIdFieldName());
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				float score = topDocs.scoreDocs[i].score;
-
-				if (filename != null && !filename.equals(filename.trim())) {
-					if (logger.isDebugEnabled())
-						logger.debug("orginal doc name not trimmed: |"
-								+ filename + "|");
-				} else if (filename == null) {
-					logger.error("docno does not exist: " + doc.toString());
-					logger.error("inner docid: " + docid + ", score:" + score);
-					if (docid > 0) {
-						try {
-							logger.error("previous docno: "
-									+ this.searcher.doc(docid - 1).toString());
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
-					}
-					continue;
-				}
-				sbuffer.append(queryIdExpanded);
-				sbuffer.append(filename.trim());
-				sbuffer.append(" ");
-
-				sbuffer.append(i);
-				sbuffer.append(" ");
-				sbuffer.append(score);
-
-				sbuffer.append(methodExpanded);
-			}
-			pw.write(sbuffer.toString());
-		}
-	}
+//	static class TRECDocnoOutputFormat implements OutputFormat {
+//		Searcher searcher;
+//
+//		public TRECDocnoOutputFormat(Searcher searcher) {
+//			this.searcher = searcher;
+//		}
+//
+//		String docidField = null;
+//
+//		private String getIdFieldName() {
+//			if (docidField == null) {
+//				docidField = ApplicationSetup.getProperty("TrecDocTags.idtag",
+//						"DOCNO");
+//			}
+//			return docidField;
+//		}
+//
+//		/**
+//		 * Prints the results for the given search request, using the specified
+//		 * destination.
+//		 * 
+//		 * @param pw
+//		 *            PrintWriter the destination where to save the results.
+//		 */
+//		public void printResults(String queryID, final PrintWriter pw,
+//				final TopDocCollector collector) {
+//			TopDocs topDocs = collector.topDocs();
+//
+//			int len = topDocs.totalHits;
+//			int maximum = Math.min(topDocs.scoreDocs.length, end);
+//
+//			// if (minimum > set.getResultSize())
+//			// minimum = set.getResultSize();
+//			final String iteration = ITERATION + "0";
+//			final String queryIdExpanded = queryID + " " + iteration + " ";
+//			final String methodExpanded = " " + "LabLucene"
+//					+ ApplicationSetup.EOL;
+//			StringBuilder sbuffer = new StringBuilder();
+//			// the results are ordered in descending order
+//			// with respect to the score.
+//			int limit = 10000;
+//			int counter = 0;
+//			for (int i = start; i < maximum; i++) {
+//				int docid = topDocs.scoreDocs[i].doc;
+//
+//				Document doc = null;
+//				String filename = null;
+//				try {
+//					doc = searcher.doc(docid);
+//					filename = doc.get(getIdFieldName());
+//				} catch (Exception e) {
+//					e.printStackTrace();
+//				}
+//				float score = topDocs.scoreDocs[i].score;
+//
+//				if (filename != null && !filename.equals(filename.trim())) {
+//					if (logger.isDebugEnabled())
+//						logger.debug("orginal doc name not trimmed: |"
+//								+ filename + "|");
+//				} else if (filename == null) {
+//					logger.error("docno does not exist: " + doc.toString());
+//					logger.error("inner docid: " + docid + ", score:" + score);
+//					if (docid > 0) {
+//						try {
+//							logger.error("previous docno: "
+//									+ this.searcher.doc(docid - 1).toString());
+//						} catch (Exception e) {
+//							e.printStackTrace();
+//						}
+//					}
+//					continue;
+//				}
+//				sbuffer.append(queryIdExpanded);
+//				sbuffer.append(filename.trim());
+//				sbuffer.append(" ");
+//
+//				sbuffer.append(i);
+//				sbuffer.append(" ");
+//				sbuffer.append(score);
+//
+//				sbuffer.append(methodExpanded);
+//			}
+//			pw.write(sbuffer.toString());
+//		}
+//	}
 
 	static class TRECDocidOutputFormat implements OutputFormat {
 		Searcher searcher;
@@ -855,111 +856,4 @@ public class TRECQuerying {
 		}
 	}
 
-	/**
-	 * this is only for RF 08 right now. 
-	 * @author zheng
-	 *
-	 */
-	static class TRECDocidFilterOutputFormat implements OutputFormat {
-		Searcher searcher;
-		String qrelsFilename = ApplicationSetup.getProperty("RF08Filter.file", "");
-		TRECQrelsInMemory b2eqrels = new TRECQrelsInMemory(qrelsFilename);
-
-		public TRECDocidFilterOutputFormat(Searcher searcher) {
-			this.searcher = searcher;
-		}
-
-		/**
-		 * Prints the results for the given search request, using the specified
-		 * destination.
-		 * 
-		 * @param pw
-		 *            PrintWriter the destination where to save the results.
-		 * @param q
-		 *            SearchRequest the object encapsulating the query and the
-		 *            results.
-		 */
-		public void printResults(String queryID, final PrintWriter pw,
-				final TopDocCollector collector) {
-			TopDocs topDocs = collector.topDocs();
-			int len = topDocs.totalHits;
-
-			int maximum = Math.min(topDocs.scoreDocs.length, end);
-
-			String queryid = "";
-			THashSet<String> relSet = null;
-			THashSet<String> nonrelSet = null;
-			// if (minimum > set.getResultSize())
-			// minimum = set.getResultSize();
-			final String iteration = ITERATION + "0";
-			final String queryIdExpanded = queryID + " " + iteration + " ";
-			final String methodExpanded = " " + "LabLucene"
-					+ ApplicationSetup.EOL;
-			StringBuilder sbuffer = new StringBuilder(1024 * 10);
-			// the results are ordered in descending order
-			// with respect to the score.
-			int i = start; int p =0; 
-			int skiped =0;
-			for (; i < maximum && p < 2500; i++) {
-				int docid = topDocs.scoreDocs[i].doc;
-				String filename = "" + docid;
-				float score = topDocs.scoreDocs[i].score;
-
-				if (!queryid.equals(queryID)) {
-					queryid = queryID;
-					// rank = 0;
-					relSet = b2eqrels.getRelevantDocuments(queryid);
-					nonrelSet = b2eqrels.getNonRelevantDocuments(queryid);
-				}
-				if (relSet == null){
-					skiped ++;
-					continue;
-				}
-				else if (relSet.contains(filename)){
-					skiped ++;
-					continue;
-				}
-				if (nonrelSet != null && nonrelSet.contains(filename)){
-					skiped ++; 
-					continue;
-				}
-
-				if (filename != null && !filename.equals(filename.trim())) {
-					if (logger.isDebugEnabled())
-						logger.debug("orginal doc name not trimmed: |"
-								+ filename + "|");
-				} else if (filename == null) {
-					logger.error("inner docid does not exist: " + docid
-							+ ", score:" + score);
-					if (docid > 0) {
-						try {
-							logger.error("previous docno: "
-									+ this.searcher.doc(docid - 1).toString());
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
-					}
-					continue;
-				}
-				sbuffer.append(queryIdExpanded);
-				sbuffer.append(filename);
-				sbuffer.append(" ");
-				sbuffer.append(p);
-				sbuffer.append(" ");
-				sbuffer.append(score);
-				sbuffer.append(methodExpanded);
-				p++;
-			}
-			if(logger.isDebugEnabled() )logger.debug("skiped: " + skiped);
-			pw.write(sbuffer.toString());
-		}
-	}
-
-	public static void main(String args[]) {
-		String test = "BM25b=0.4k_1=1.2k_3=8.0_QEAdap_W3RocProx1w=500F=1.0_30_50_KLb0.8_5.gz";
-		String prefix = "BM25b=0.4k_1=1.2k_3=8.0";
-		if (test.matches(prefix + "_[0-9]{1,5}\\.gz")) {
-			System.out.println("true");
-		}
-	}
 }
