@@ -63,6 +63,7 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 				if(classifier instanceof SVMreg){
 					((SVMreg) classifier).setKernel(new NormalizedPolyKernel());
 				}
+				
 				return classifier;
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
@@ -118,8 +119,8 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 			}
 		}
 		
-		Instance ist = makeInstance();
-		addInstance(ist);
+		Instance inst = makeInstance();
+		addInstance(inst);
 		if(topicId.equalsIgnoreCase("")){
 			build_save();
 		}
