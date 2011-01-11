@@ -108,7 +108,7 @@ public class AdhocEvaluation extends Evaluation {
 	/** Precision at 100%. */
 	protected double PrecAt100Percent;
 	/** Average Precision. */
-	protected double AveragePrecision;
+	public double AveragePrecision;
 	/** Relevant Precision. */
 	protected double RelevantPrecision;
 	/** The average precision of each query. */
