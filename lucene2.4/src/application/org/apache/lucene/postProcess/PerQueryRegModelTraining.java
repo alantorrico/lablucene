@@ -41,10 +41,14 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 		return trecR;
 	}
 	
+	static String outfile = "SVMreg.res";
+	static String modelout = "reg.model";
 	private static Classifier classifier = null;
 	private static Instances insts = null;
 	static String classfierName = ApplicationSetup.getProperty("PerQueryRegModelTraining.reg", "SVMreg");
-	String lasttopic = ApplicationSetup.getProperty("PerQueryRegModelTraining.lasttopic", "300");
+	String lasttopic = ApplicationSetup.getProperty("PerQueryRegModelTraining.lasttopic", "500");
+	boolean trainingTag = Boolean.parseBoolean(ApplicationSetup.getProperty("PerQueryRegModelTraining.train", "true"));
+	
 	/**
 	 * todo
 	 * 
@@ -84,6 +88,18 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 			}
 		}
 		
+		return classifier;
+	}
+	
+	private static Classifier readClassifier(){
+		if(classifier == null){
+			try {
+				classifier = 
+				(Classifier) AbstractExternalizable.readObject(new File(modelout));
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 		return classifier;
 	}
 	
@@ -175,7 +191,13 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 		example.setValue(2, clarity1);
 		example.setValue(3, clarity2); 
 		example.setValue(4, ApplicationSetup.EXPANSION_DOCUMENTS);
-		example.setValue(5, beta);
+		if(trainingTag)	{
+			example.setValue(5, beta);
+		}
+		else{
+			example.setValue(5, 0);
+		}
+
 		return example;
 	}
 	
@@ -185,7 +207,8 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 		Term lterm = new Term(field, term);
 		return tcache.getItem(lterm, searcher);
 	}
-	String outfile = "SVMreg.res";
+
+	
 	/*
 	 * (non-Javadoc)
 	 * 
@@ -196,34 +219,54 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 	public TopDocCollector postProcess(RBooleanQuery query,
 			TopDocCollector topDoc, Searcher seacher) {
 		setup(query, topDoc, seacher); // it is necessary
-		output(topDoc);
-		getTRECQerls();
-		trecR.evaluate(outfile);
-		float optBeta = 0; 
-		TopDocCollector besttdc = topDoc;
-		double map = trecR.AveragePrecision;
-		for(float beta = 0.1f; beta < 1.1 ; beta += 0.1){
-			QueryExpansionAdap qea = new QueryExpansionAdap();
-			TopDocCollector tdc = qea.postProcess(query, topDoc, seacher);
-			output(tdc);
+		if(trainingTag){
+			output(topDoc);
+			getTRECQerls();
 			trecR.evaluate(outfile);
-			
-			if(map <trecR.AveragePrecision){
-				optBeta = beta;
-				map = trecR.AveragePrecision;
-				besttdc = tdc;
+			float optBeta = 0; 
+			TopDocCollector besttdc = topDoc;
+			double map = trecR.AveragePrecision;
+			String para = "";
+			for(float beta = 0.1f; beta < 1.1 ; beta += 0.1){
+				this.QEModel.ROCCHIO_BETA = beta;
+				QueryExpansionAdap qea = new QueryExpansionAdap();
+				TopDocCollector tdc = qea.postProcess(query, topDoc, seacher);
+				output(tdc);
+				trecR.evaluate(outfile);
+				para = qea.getInfo();
+				if(map <trecR.AveragePrecision){
+					optBeta = beta;
+					map = trecR.AveragePrecision;
+					besttdc = tdc;
+				}
 			}
+			System.out.println(this.topicId + ", OptBeta: " + optBeta);
+			getClassifier();
+			getTrainingSet();
+			Instance inst = makeInstance(optBeta);
+			addInstance(inst);
+			if(topicId.equalsIgnoreCase(lasttopic)){
+				build_save();
+			}
+			besttdc.setInfo(this.getInfo() + topDoc.getInfo()+para);
+			besttdc.setInfo_add(QEModel.getInfo());
+			return besttdc;
+		}else{
+			readClassifier(); 
+			Instance insts = makeInstance(0);
+			QueryExpansionAdap qea = new QueryExpansionAdap();
+			try {
+				double cscore[] = classifier.distributionForInstance(insts);
+				qea.QEModel.ROCCHIO_BETA = (float) cscore[0];
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			TopDocCollector tdc = qea.postProcess(query, topDoc, seacher);
+			tdc.setInfo(topDoc.getInfo()+ tdc.getInfo());
+//			tdc.setInfo_add(QEModel.getInfo());
+			return tdc;
 		}
-		System.out.println(this.topicId + ", OptBeta: " + optBeta);
-		getClassifier();
-		getTrainingSet();
-		Instance inst = makeInstance(optBeta);
-		addInstance(inst);
-		if(topicId.equalsIgnoreCase(lasttopic)){
-			build_save();
-		}
-		
-		return besttdc;
+
 
 	}
 
@@ -232,7 +275,7 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 		Classifier cls = getClassifier();
 		try {
 			cls.buildClassifier(getTrainingSet());
-			AbstractExternalizable.serializeTo(cls, new File("reg.model"));
+			AbstractExternalizable.serializeTo(cls, new File(modelout));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -298,8 +341,6 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 	}
 	
 	public String getInfo() {
-		int n_doc = ApplicationSetup.EXPANSION_DOCUMENTS;
-		int n_term = ApplicationSetup.EXPANSION_TERMS;
-		return ("PerQuery") + "_" + "_" + n_doc + "_" + n_term;
+		return ("PerQuery");
 	}
 }
