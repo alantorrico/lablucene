@@ -106,15 +106,15 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 	static Instances getTrainingSet(){
 		if(insts == null){
 			FastVector fvNominalVal = new FastVector();
-			Attribute docLenAtt = new Attribute("QueryLength"); // 1
+			Attribute docLenAtt = new Attribute("QueryLength"); // 0
 			fvNominalVal.addElement(docLenAtt);
-			Attribute mitraAtt = new Attribute("QueryEntropy"); // 2 
+			Attribute mitraAtt = new Attribute("QueryEntropy"); // 1 
 			fvNominalVal.addElement(mitraAtt);
-			Attribute clarityAtt = new Attribute("QueryClarity"); //3 
+			Attribute clarityAtt = new Attribute("QueryClarity"); //2 
 			fvNominalVal.addElement(clarityAtt);
-			Attribute clarityAtt1 = new Attribute("QueryClarity1"); //4 
+			Attribute clarityAtt1 = new Attribute("QueryClarity1"); //3 
 			fvNominalVal.addElement(clarityAtt1);
-			Attribute feedbacklengthAtt = new Attribute("FeedbackLength"); // 5 : number of feedback docs
+			Attribute feedbacklengthAtt = new Attribute("FeedbackLength"); // 4 : number of feedback docs
 			fvNominalVal.addElement(feedbacklengthAtt);
 			
 			// add class category feature
@@ -124,17 +124,20 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 			 * Attribute ClassAttribute = new Attribute("theClass", fvClassVal);
 			 * fvNominalVal.addElement(ClassAttribute);
 			 */
-			Attribute ClassAttribute = new Attribute("theClass"); // 6 
+			Attribute ClassAttribute = new Attribute("theClass"); // 5 
 			fvNominalVal.addElement(ClassAttribute);
 
 			int FutureSize = fvNominalVal.size();
 			insts = new Instances("Rel", fvNominalVal, FutureSize);
-			
+			insts.setClass(ClassAttribute);
+//			System.out.println(insts.attribute(0));
+//			System.out.println(insts.attribute(5));
 		}
 		return insts;
 	}
 	
 	private Instance makeInstance(float beta) {
+		getTrainingSet();
 		Instance example = new Instance(insts.numAttributes());
 		FeedbackSelector fselector = this.getFeedbackSelector(this.searcher);
 		FeedbackDocuments fdocs = fselector.getFeedbackDocuments(topicId);
@@ -193,11 +196,13 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 		example.setValue(4, ApplicationSetup.EXPANSION_DOCUMENTS);
 		if(trainingTag)	{
 			example.setValue(5, beta);
+//			Attribute ClassAttribute = getTrainingSet().attributeStats(5);
+//			example.setValue(ClassAttribute,  beta);
 		}
 		else{
-			example.setValue(5, 0);
+//			example.setValue(5, 0);
 		}
-
+		example.setDataset(getTrainingSet());
 		return example;
 	}
 	
@@ -227,9 +232,11 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 			TopDocCollector besttdc = topDoc;
 			double map = trecR.AveragePrecision;
 			String para = "";
+			
+			//find the best interpolation parameter. 
 			for(float beta = 0.1f; beta < 1.1 ; beta += 0.1){
-				this.QEModel.ROCCHIO_BETA = beta;
 				QueryExpansionAdap qea = new QueryExpansionAdap();
+				qea.QEModel.ROCCHIO_BETA = beta;
 				TopDocCollector tdc = qea.postProcess(query, topDoc, seacher);
 				output(tdc);
 				trecR.evaluate(outfile);
@@ -240,6 +247,7 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 					besttdc = tdc;
 				}
 			}
+			
 			System.out.println(this.topicId + ", OptBeta: " + optBeta);
 			getClassifier();
 			getTrainingSet();
@@ -251,23 +259,28 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 			besttdc.setInfo(this.getInfo() + topDoc.getInfo()+para);
 			besttdc.setInfo_add(QEModel.getInfo());
 			return besttdc;
-		}else{
+		}else{ // testing
 			readClassifier(); 
 			Instance insts = makeInstance(0);
 			QueryExpansionAdap qea = new QueryExpansionAdap();
 			try {
 				double cscore[] = classifier.distributionForInstance(insts);
 				qea.QEModel.ROCCHIO_BETA = (float) cscore[0];
+				System.out.println(this.topicId + ", predict: " + qea.QEModel.ROCCHIO_BETA);
+				if(cscore[0] < 0.05){
+					topDoc.setInfo(this.getInfo()+ topDoc.getInfo());
+					return topDoc;
+				}
 			} catch (Exception e) {
 				e.printStackTrace();
+				System.exit(1);
 			}
+			
 			TopDocCollector tdc = qea.postProcess(query, topDoc, seacher);
-			tdc.setInfo(topDoc.getInfo()+ tdc.getInfo());
+			tdc.setInfo(this.getInfo()+ tdc.getInfo());
 //			tdc.setInfo_add(QEModel.getInfo());
 			return tdc;
 		}
-
-
 	}
 
 
@@ -341,6 +354,6 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 	}
 	
 	public String getInfo() {
-		return ("PerQuery");
+		return ("PerQuery" + (trainingTag == true? "Train":"Test"));
 	}
 }
