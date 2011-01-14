@@ -82,7 +82,6 @@ public class PerQueryRegModelTraining extends QueryExpansion {
 					
 					return classifier;
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
