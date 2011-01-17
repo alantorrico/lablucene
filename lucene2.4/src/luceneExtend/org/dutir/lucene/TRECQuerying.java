@@ -395,7 +395,6 @@ public class TRECQuerying {
 						.newInstance();
 				collector = pp.postProcess(bquery, collector, this.searcher);
 			}
-
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

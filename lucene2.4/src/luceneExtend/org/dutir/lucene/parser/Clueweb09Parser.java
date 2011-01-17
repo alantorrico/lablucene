@@ -265,7 +265,6 @@ public class Clueweb09Parser implements DocumentParser {
 	}
 
 	public void setup(InputStream is, File file, String encoding) {
-		// TODO Auto-generated method stub
 		conformsTotag = false;
 		bis = new BufferedInputStream(is, Cache);
 		this.file = file;
@@ -273,7 +272,6 @@ public class Clueweb09Parser implements DocumentParser {
 		try {
 			this.br = new BufferedReader(new InputStreamReader(bis, encoding));
 		} catch (UnsupportedEncodingException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -287,7 +285,6 @@ public class Clueweb09Parser implements DocumentParser {
 		// String ptest = test.replaceAll("<[/!]?[^>]+>", "");
 		String ptest = test.replaceAll("<\\?xml version.{1,40}\\?>", "");
 		System.out.println(ptest);
-
 		System.out.println(ptest.substring(ptest.length()));
 
 		// Clueweb09Parser parser = new Clueweb09Parser();

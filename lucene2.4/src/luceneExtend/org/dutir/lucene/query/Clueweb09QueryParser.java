@@ -129,8 +129,6 @@ public class Clueweb09QueryParser extends LuceneQueryParser {
 				String line = null;
 				while((line = br.readLine()) != null){
 					String parts[] = line.split(":");
-					
-					
 					vecStringQueries.add(parts[1]);
 //					assert parts[0].length() > 5;
 					if( parts[0].length() > 4 && parts[0].charAt(4) == '-'){
@@ -138,7 +136,6 @@ public class Clueweb09QueryParser extends LuceneQueryParser {
 					}else{
 						vecStringIds.add(parts[0]);
 					}
-					
 				}
 				// after processing each query file, close the BufferedReader
 				br.close();
