@@ -51,8 +51,6 @@ public class QueryExpansion implements PostProcess {
 	protected RBooleanClause bclause[] = null;
 	protected HashMap<RBooleanClause, RBooleanClause> cluaseSet = null;
 
-
-
 	/**
 	 * a set of original string query terms
 	 */

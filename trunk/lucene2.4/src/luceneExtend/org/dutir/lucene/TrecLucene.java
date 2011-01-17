@@ -259,9 +259,7 @@ public class TrecLucene {
 				hadoop = true;
 			else if (args[pos].equals("-r") || args[pos].equals("--retrieve")) {
 				retrieving = true;
-			}
-
-			else if (args[pos].equals("-v") || args[pos].equals("--inverted"))
+			}else if (args[pos].equals("-v") || args[pos].equals("--inverted"))
 				inverted = true;
 			else if (args[pos].equals("-d") || args[pos].equals("--direct"))
 				direct = true;
